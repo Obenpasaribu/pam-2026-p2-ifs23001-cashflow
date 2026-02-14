@@ -9,6 +9,8 @@
 POST {{BaseUrl}}/cash-flows/setup
 Content-Type: application/json
 
+## CashFlows: CRUD
+## ===========================================
 
 ### Mengambil semua data cash-flows
 # @name GetAllCashFlows

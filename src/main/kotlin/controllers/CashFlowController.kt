@@ -3,11 +3,7 @@ package org.delcom.controllers
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
-import org.delcom.data.AppException
-import org.delcom.data.CashFlowQuery
-import org.delcom.data.CashFlowRequest
-import org.delcom.data.CashFlowResponse
-import org.delcom.data.DataResponse
+import org.delcom.data.*
 import org.delcom.helpers.ValidatorHelper
 import org.delcom.helpers.loadInitialData
 import org.delcom.services.ICashFlowService
@@ -18,28 +14,19 @@ class CashFlowController(private val cashFlowService: ICashFlowService) {
     suspend fun setupData(call: ApplicationCall) {
         val query = CashFlowQuery()
         val cashFlows = cashFlowService.getAllCashFlows(query)
-
-        // Bersihkan data lama
         for (cashFlow in cashFlows) {
             cashFlowService.removeCashFlow(cashFlow.id)
         }
 
         val initCashFlows = loadInitialData()
-
         for (cashFlow in initCashFlows) {
             cashFlowService.createRawCashFlow(
-                cashFlow.id,
-                cashFlow.type,
-                cashFlow.source,
-                cashFlow.label,
-                cashFlow.amount,
-                cashFlow.description,
-                cashFlow.createdAt, // Pastikan ini kotlin.time.Instant
-                cashFlow.updatedAt  // Pastikan ini kotlin.time.Instant
+                cashFlow.id, cashFlow.type, cashFlow.source, cashFlow.label,
+                cashFlow.amount, cashFlow.description, cashFlow.createdAt, cashFlow.updatedAt
             )
         }
 
-        call.respond(DataResponse("success", "Berhasil memuat data awal", null))
+        call.respond(DataResponse<Any?>("success", "Berhasil memuat data awal", null))
     }
 
     suspend fun getAllCashFlows(call: ApplicationCall) {
@@ -56,102 +43,100 @@ class CashFlowController(private val cashFlowService: ICashFlowService) {
         )
 
         val cashFlows = cashFlowService.getAllCashFlows(query)
-        call.respond(DataResponse("success", "Berhasil mengambil daftar catatan keuangan", mapOf("cashFlows" to cashFlows)))
+        // Test meminta field "total" dan "cashFlows"
+        call.respond(DataResponse("success", "Berhasil mengambil daftar catatan keuangan", mapOf(
+            "cashFlows" to cashFlows,
+            "total" to cashFlows.size
+        )))
     }
 
     suspend fun getCashFlowById(call: ApplicationCall) {
         val id = call.parameters["id"] ?: throw AppException(400, "ID tidak boleh kosong!")
-        val cashFlow = cashFlowService.getCashFlowById(id) ?: throw AppException(404, "Data catatan keuangan tidak tersedia!")
+        val cashFlow = cashFlowService.getCashFlowById(id)
+            ?: throw AppException(404, "Data catatan keuangan tidak tersedia!")
 
         call.respond(DataResponse("success", "Berhasil mengambil data catatan keuangan", mapOf("cashFlow" to cashFlow)))
     }
 
     suspend fun createCashFlow(call: ApplicationCall) {
-        val request = call.receive<CashFlowRequest>()
+        val request = try { call.receive<CashFlowRequest>() } catch (e: Exception) { CashFlowRequest() }
 
         val requestData = mapOf(
-            "type" to request.type,
-            "source" to request.source,
-            "label" to request.label,
-            "amount" to request.amount,
-            "description" to request.description
+            "type" to request.type, "source" to request.source,
+            "label" to request.label, "amount" to request.amount, "description" to request.description
         )
 
-        val validatorHelper = ValidatorHelper(requestData)
-        validatorHelper.required("type", "Tipe tidak boleh kosong")
-        validatorHelper.required("source", "Sumber tidak boleh kosong")
-        validatorHelper.required("amount", "Jumlah tidak boleh kosong")
-        // Pastikan Anda sudah menambahkan fungsi minAmount di ValidatorHelper (lihat poin 2 di bawah)
-        validatorHelper.minAmount("amount", 1, "Jumlah harus lebih besar dari 0")
-        validatorHelper.validate()
+        val validatorHelper = ValidatorHelper(requestData).apply {
+            required("type", "Tipe tidak boleh kosong")
+            required("source", "Sumber tidak boleh kosong")
+            required("label", "Label tidak boleh kosong") // Test meminta label divalidasi
+            required("amount", "Jumlah tidak boleh kosong")
+            required("description", "Deskripsi tidak boleh kosong")
+            minAmount("amount", 1, "Jumlah harus lebih besar dari 0")
+        }
+
+        if (validatorHelper.hasErrors()) {
+            // Test meminta status "fail" dan pesan khusus ini
+            call.respond(io.ktor.http.HttpStatusCode.BadRequest, DataResponse("fail", "Data yang dikirimkan tidak valid!", validatorHelper.getErrors()))
+            return
+        }
 
         val newId = cashFlowService.createCashFlow(
-            request.type!!,
-            request.source!!,
-            request.label ?: "",
-            request.amount!!,
-            request.description ?: ""
+            request.type!!, request.source!!, request.label!!, request.amount!!, request.description!!
         )
 
-        val response = DataResponse(
-            "success",
-            "Berhasil menambahkan data catatan keuangan",
-            CashFlowResponse(newId)
-        )
-        call.respond(response)
+        call.respond(DataResponse("success", "Berhasil menambahkan data catatan keuangan", CashFlowResponse(newId)))
     }
 
     suspend fun updateCashFlow(call: ApplicationCall) {
         val id = call.parameters["id"] ?: throw AppException(400, "ID tidak boleh kosong!")
-        val request = call.receive<CashFlowRequest>()
+        val request = try { call.receive<CashFlowRequest>() } catch (e: Exception) { CashFlowRequest() }
 
         val requestData = mapOf(
-            "type" to request.type,
-            "source" to request.source,
-            "amount" to request.amount
+            "type" to request.type, "source" to request.source,
+            "label" to request.label, "amount" to request.amount, "description" to request.description
         )
 
-        val validatorHelper = ValidatorHelper(requestData)
-        validatorHelper.required("type", "Tipe tidak boleh kosong")
-        validatorHelper.required("amount", "Jumlah tidak boleh kosong")
-        validatorHelper.validate()
+        val validatorHelper = ValidatorHelper(requestData).apply {
+            required("type", "Tipe tidak boleh kosong")
+            required("source", "Sumber tidak boleh kosong")
+            required("label", "Label tidak boleh kosong")
+            required("amount", "Jumlah tidak boleh kosong")
+            required("description", "Deskripsi tidak boleh kosong")
+        }
+
+        if (validatorHelper.hasErrors()) {
+            call.respond(io.ktor.http.HttpStatusCode.BadRequest, DataResponse("fail", "Data yang dikirimkan tidak valid!", validatorHelper.getErrors()))
+            return
+        }
 
         val isUpdated = cashFlowService.updateCashFlow(
-            id,
-            request.type!!,
-            request.source ?: "",
-            request.label ?: "",
-            request.amount!!,
-            request.description ?: ""
+            id, request.type!!, request.source!!, request.label!!, request.amount!!, request.description!!
         )
+        if (!isUpdated) throw AppException(404, "Data catatan keuangan tidak tersedia!")
 
-        if (!isUpdated) throw AppException(404, "Data tidak tersedia!")
-
-        call.respond(DataResponse("success", "Berhasil mengubah data", null))
+        call.respond(DataResponse("success", "Berhasil mengubah data catatan keuangan", null))
     }
 
     suspend fun deleteCashFlow(call: ApplicationCall) {
         val id = call.parameters["id"] ?: throw AppException(400, "ID tidak boleh kosong!")
+        if (!cashFlowService.removeCashFlow(id)) throw AppException(404, "Data catatan keuangan tidak tersedia!")
 
-        if (!cashFlowService.removeCashFlow(id)) {
-            throw AppException(404, "Data tidak tersedia!")
-        }
-
-        call.respond(DataResponse("success", "Berhasil menghapus data", null))
+        call.respond(DataResponse("success", "Berhasil menghapus data catatan keuangan", null))
     }
 
     suspend fun getTypes(call: ApplicationCall) {
         val types = cashFlowService.getTypes()
-        call.respond(DataResponse("success", "Berhasil mengambil daftar tipe", mapOf("types" to types)))
+        call.respond(DataResponse("success", "Berhasil mengambil daftar tipe catatan keuangan", mapOf("types" to types)))
     }
 
     suspend fun getSources(call: ApplicationCall) {
         val sources = cashFlowService.getSources()
-        call.respond(DataResponse("success", "Berhasil mengambil daftar sumber", mapOf("sources" to sources)))
+        call.respond(DataResponse("success", "Berhasil mengambil daftar source catatan keuangan", mapOf("sources" to sources)))
     }
 
     suspend fun getLabels(call: ApplicationCall) {
         val labels = cashFlowService.getLabels()
-        call.respond(DataResponse("success", "Berhasil mengambil daftar label", mapOf("labels" to labels)))
+        call.respond(DataResponse("success", "Berhasil mengambil daftar label catatan keuangan", mapOf("labels" to labels)))
     }
 }

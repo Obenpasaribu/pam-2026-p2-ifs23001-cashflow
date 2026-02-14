@@ -1,35 +1,30 @@
 package org.delcom
 
-import io.ktor.http.HttpStatusCode
+import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.delcom.controllers.CashFlowController
 import org.delcom.data.AppException
-import org.delcom.data.ErrorResponse
-import org.delcom.helpers.parseMessageToMap
+import org.delcom.data.DataResponse
 import org.koin.ktor.ext.inject
 
 fun Application.configureRouting() {
     val cashFlowController: CashFlowController by inject()
 
+    // Pindahkan install StatusPages ke sini agar tidak duplikat
     install(StatusPages) {
         exception<AppException> { call, cause ->
-            val dataMap = parseMessageToMap(cause.message)
-            call.respond(
-                status = HttpStatusCode.fromValue(cause.code),
-                message = ErrorResponse(
-                    status = "fail",
-                    message = if (dataMap.isEmpty()) cause.message else "Data yang dikirimkan tidak valid!",
-                    data = dataMap
-                )
-            )
+            val statusCode = HttpStatusCode.fromValue(cause.code)
+            val statusLabel = if (cause.code in 400..499) "fail" else "error"
+            call.respond(statusCode, DataResponse<Any?>(statusLabel, cause.message, null))
         }
+
         exception<Throwable> { call, cause ->
             call.respond(
-                status = HttpStatusCode.InternalServerError,
-                message = ErrorResponse("error", cause.message ?: "Unknown error")
+                HttpStatusCode.InternalServerError,
+                DataResponse<Any?>("error", cause.message ?: "Terjadi kesalahan internal", null)
             )
         }
     }
