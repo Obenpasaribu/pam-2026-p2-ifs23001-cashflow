@@ -21,7 +21,7 @@ fun Application.configureRouting() {
                 status = HttpStatusCode.fromValue(cause.code),
                 message = ErrorResponse(
                     status = "fail",
-                    message = if (dataMap.isEmpty()) cause.message else "Data tidak valid!",
+                    message = if (dataMap.isEmpty()) cause.message else "Data yang dikirimkan tidak valid!",
                     data = dataMap
                 )
             )
