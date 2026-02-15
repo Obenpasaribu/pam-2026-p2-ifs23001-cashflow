@@ -70,7 +70,7 @@ class CashFlowService(private val repository: ICashFlowRepository) : ICashFlowSe
             true // Lolos semua filter
         }
     }
-
+    
     override fun getCashFlowById(id: String) = repository.getById(id)
 
     // Implementasi Method Baru
