@@ -3,27 +3,25 @@ package org.delcom.repositories
 import org.delcom.entities.CashFlow
 
 class CashFlowRepository : ICashFlowRepository {
-    private val cashFlows = mutableListOf<CashFlow>()
+    // Gunakan LinkedHashMap: Pencarian ID instan, tapi urutan data tetap terjaga
+    private val cashFlows = LinkedHashMap<String, CashFlow>()
 
-    override fun getAll(): List<CashFlow> = cashFlows
+    override fun getAll(): List<CashFlow> = cashFlows.values.toList()
 
-    override fun getById(id: String): CashFlow? = cashFlows.find { it.id == id }
+    override fun getById(id: String): CashFlow? = cashFlows[id]
 
     override fun add(cashFlow: CashFlow) {
-        cashFlows.add(cashFlow)
+        cashFlows[cashFlow.id] = cashFlow
     }
 
     override fun update(id: String, cashFlow: CashFlow): Boolean {
-        val index = cashFlows.indexOfFirst { it.id == id }
-        if (index != -1) {
-            cashFlows[index] = cashFlow
-            return true
-        }
-        return false
+        if (!cashFlows.containsKey(id)) return false
+        cashFlows[id] = cashFlow
+        return true
     }
 
     override fun delete(id: String): Boolean {
-        return cashFlows.removeIf { it.id == id }
+        return cashFlows.remove(id) != null
     }
 
     override fun clearAll() {
