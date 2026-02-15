@@ -15,8 +15,9 @@ fun loadInitialData(): List<CashFlow> {
         val jsonFile = File("data-awal.json")
 
         if (!jsonFile.exists()) {
+            // Try to load from resources
             val resource = object {}.javaClass.classLoader.getResource("data-awal.json")
-                ?: throw IllegalStateException("File data-awal.json tidak ditemukan")
+                ?: throw IllegalStateException("File data-awal.json tidak ditemukan di resources atau filesystem")
 
             val jsonText = resource.readText()
             Json.decodeFromString<CashFlowsContainer>(jsonText).cashFlows

@@ -1,9 +1,12 @@
 package org.delcom.data
 
 import kotlinx.serialization.Serializable
+// --- TAMBAHKAN IMPORT INI ---
 import org.delcom.entities.CashFlow
+// ----------------------------
 
 @Serializable
-data class CashFlowResponse(
-    val cashFlowId: String
+data class CashFlowsResponse(
+    val cashFlows: List<CashFlow>,
+    val total: Int
 )

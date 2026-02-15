@@ -1,32 +1,24 @@
 package org.delcom.helpers
 
+import org.delcom.data.AppException
+
 class ValidatorHelper(private val data: Map<String, Any?>) {
-    private val errors = mutableMapOf<String, String>()
+    private val errors = mutableListOf<String>()
 
-    fun required(field: String, message: String) {
+    fun addError(field: String, error: String) {
+        errors.add("$field: $error")
+    }
+
+    fun required(field: String, message: String? = null) {
         val value = data[field]
-        if (value == null || value.toString().trim().isEmpty()) {
-            errors[field] = message
+        if (value == null || (value is String && value.isBlank())) {
+            addError(field, message ?: "Is required")
         }
     }
-
-    fun minAmount(field: String, min: Long, message: String) {
-        // Ubah apapun inputnya menjadi String dulu, lalu ke Long.
-        // Ini paling aman untuk data yang datang dari JSON API.
-        val value = data[field]?.toString()?.toLongOrNull()
-
-        if (value == null || value < min) {
-            errors[field] = message
-        }
-    }
-
-    fun hasErrors(): Boolean = errors.isNotEmpty()
-
-    fun getErrors(): Map<String, String> = errors
 
     fun validate() {
-        if (hasErrors()) {
-            // Biarkan Controller yang menangani responnya
+        if (errors.isNotEmpty()) {
+            throw AppException(400, errors.joinToString("|"))
         }
     }
 }

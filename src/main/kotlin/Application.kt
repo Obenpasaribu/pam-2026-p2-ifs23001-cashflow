@@ -1,40 +1,24 @@
 package org.delcom
 
-import io.github.cdimascio.dotenv.dotenv
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
-import io.ktor.server.netty.EngineMain
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.cors.routing.CORS
-import io.ktor.server.plugins.statuspages.* // WAJIB ADA
-import io.ktor.server.response.* // WAJIB ADA
-import kotlinx.serialization.json.Json
-import org.delcom.data.* // Memastikan AppException & DataResponse terbaca
-import org.delcom.data.appModule
+import org.delcom.data.appModule // PENTING: Gunakan appModule dari package data
 import org.koin.ktor.plugin.Koin
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import kotlinx.serialization.json.Json
+import io.ktor.server.netty.EngineMain
+import io.github.cdimascio.dotenv.dotenv
 
 fun main(args: Array<String>) {
-    val dotenv = dotenv {
-        directory = "."
-        ignoreIfMissing = true
-    }
+    val dotenv = dotenv { directory = "."; ignoreIfMissing = false }
     dotenv.entries().forEach { System.setProperty(it.key, it.value) }
-
     EngineMain.main(args)
 }
 
 fun Application.module() {
-    install(CORS) { anyHost() }
-
     install(ContentNegotiation) {
-        json(Json {
-            prettyPrint = true
-            ignoreUnknownKeys = true
-        })
+        json(Json { prettyPrint = true; ignoreUnknownKeys = true; isLenient = true })
     }
-
     install(Koin) { modules(appModule) }
-
     configureRouting()
 }

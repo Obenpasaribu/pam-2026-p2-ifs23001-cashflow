@@ -1,18 +1,24 @@
 package org.delcom.services
 
 import org.delcom.data.CashFlowQuery
+import org.delcom.data.CashFlowRequest
 import org.delcom.entities.CashFlow
-import kotlin.time.Instant
 
 interface ICashFlowService {
     fun getAllCashFlows(query: CashFlowQuery): List<CashFlow>
     fun getCashFlowById(id: String): CashFlow?
-    fun createCashFlow(type: String, source: String, label: String, amount: Long, description: String): String
-    fun createRawCashFlow(id: String, type: String, source: String, label: String, amount: Long, description: String, createdAt: Instant, updatedAt: Instant)
-    fun updateCashFlow(id: String, type: String, source: String, label: String, amount: Long, description: String): Boolean
-    fun removeCashFlow(id: String): Boolean
 
-    fun getTypes(): List<String>
-    fun getSources(): List<String>
-    fun getLabels(): List<String>
+    // Function lama (bisa dihapus kalau tidak dipakai, atau biarkan)
+    fun createCashFlow(req: CashFlowRequest): String
+
+    // Function BARU untuk handle data yang sudah diparse controller
+    fun createCashFlowRaw(type: String, source: String, label: String, amount: Double, description: String): String
+    fun updateCashFlowRaw(id: String, type: String, source: String, label: String, amount: Double, description: String): Boolean
+
+    fun deleteCashFlow(id: String): Boolean
+    fun setupInitialData(): Int
+
+    fun getDistinctTypes(): List<String>
+    fun getDistinctSources(): List<String>
+    fun getDistinctLabels(): List<String>
 }
