@@ -31,42 +31,42 @@ class CashFlowController(private val service: ICashFlowService) {
     }
 
     suspend fun create(call: ApplicationCall) {
-        val req = try { call.receive<CashFlowRequest>() } catch (e: Exception) { throw AppException(400, "Format data tidak valid") }
-
-        // --- LOGIKA UTAMA FIX 500 ---
-        // Kita parse manual. Jika string kosong/invalid, toDouble() akan throw NumberFormatException.
-        // StatusPages akan menangkap ini sebagai 500 (sesuai kemauan tes).
-        var amountDouble: Double? = null
-        if (req.amount != null) {
-            amountDouble = req.amount.toDouble() // Akan throw exception jika format salah
+        val req = try {
+            call.receive<CashFlowRequest>()
+        } catch (e: Exception) {
+            throw AppException(400, "Format data tidak valid")
         }
 
-        // --- VALIDASI ---
         val validator = ValidatorHelper(mapOf(
-            "type" to req.type, "source" to req.source, "label" to req.label,
-            "description" to req.description, "amount" to req.amount
+            "type" to req.type,
+            "source" to req.source, // Ini yang akan menangkap "sumber kosong"
+            "label" to req.label,
+            "description" to req.description,
+            "amount" to req.amount
         ))
-        validator.required("type"); validator.required("source")
-        validator.required("label"); validator.required("description")
 
-        // Validasi required & value > 0
-        if (req.amount == null) {
+        validator.required("type")
+        validator.required("source") // Error "Is required" akan tercipta di sini
+        validator.required("label")
+        validator.required("description")
+
+        // OBAT 2: Parsing aman tanpa melempar 500
+        val amountDouble = req.amount?.toDoubleOrNull()
+
+        if (req.amount.isNullOrBlank()) {
             validator.addError("amount", "Is required")
-        } else if (amountDouble != null && amountDouble <= 0.0) {
+        } else if (amountDouble == null) {
+            // Biarkan Ktor merespon 400 jika format angka berantakan, bukan Crash 500
+            validator.addError("amount", "Must be a valid number")
+        } else if (amountDouble <= 0.0) {
             validator.addError("amount", "Must be > 0")
         }
 
-        validator.validate()
+        validator.validate() // Lempar AppException 400 secara rapi
 
-        // Bikin object request baru dengan amount yang sudah di-convert
-        val finalReq = req.copy(amount = amountDouble.toString()) // Trick passing data
-        // Tapi service butuh request dengan angka double.
-        // Agar bersih, kita ubah service createCashFlow menerima parameter spesifik atau kita akali di service.
-        // SOLUSI TERBAIK: Panggil service dengan parameter manual (karena DTO kita sekarang String)
-
+        // Lolos validasi, simpan data
         val id = service.createCashFlowRaw(
-            req.type!!, req.source!!, req.label!!,
-            amountDouble!!, req.description!!
+            req.type!!, req.source!!, req.label!!, amountDouble!!, req.description!!
         )
 
         call.respond(DataResponse("success", "Berhasil menambahkan data catatan keuangan", mapOf("cashFlowId" to id)))
