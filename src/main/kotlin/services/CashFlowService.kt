@@ -14,48 +14,45 @@ class CashFlowService(private val repository: ICashFlowRepository) : ICashFlowSe
 
     // ... (getAllCashFlows tetap sama) ...
     override fun getAllCashFlows(query: CashFlowQuery): List<CashFlow> {
-        // OPTIMASI: Pindahkan formatter ke LUAR filter agar tidak dibuat ulang jutaan kali
         val dateFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
 
-        // OPTIMASI: Parse tanggal query di LUAR filter (hanya 1x jalan)
+        // PRE-PROCESSING: Kerjakan di luar loop agar tidak diulang-ulang
         val startLimit = query.startDate?.let { try { LocalDate.parse(it, dateFormatter) } catch (e: Exception) { null } }
         val endLimit = query.endDate?.let { try { LocalDate.parse(it, dateFormatter) } catch (e: Exception) { null } }
 
-        // OPTIMASI: Pecah labels query di LUAR filter
-        val searchTags = query.labels?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotBlank() }
+        // Pecah label query hanya 1 kali
+        val queryLabels = query.labels?.split(",")
+            ?.map { it.trim().lowercase() }
+            ?.filter { it.isNotBlank() } ?: emptyList()
 
         return repository.getAll().filter { cf ->
-            // Gunakan Short-circuit (&&) agar jika satu salah, yang bawah tidak diproses
+            // 1. Cek kriteria dasar dulu (sangat cepat)
+            if (query.type != null && !cf.type.equals(query.type, true)) return@filter false
+            if (query.source != null && !cf.source.equals(query.source, true)) return@filter false
+            if (query.gteAmount != null && cf.amount < query.gteAmount) return@filter false
+            if (query.lteAmount != null && cf.amount > query.lteAmount) return@filter false
+            if (query.search != null && !cf.description.contains(query.search, true)) return@filter false
 
-            val matchType = query.type == null || cf.type.equals(query.type, true)
-            if (!matchType) return@filter false
-
-            val matchSource = query.source == null || cf.source.equals(query.source, true)
-            if (!matchSource) return@filter false
-
-            val matchGte = query.gteAmount == null || cf.amount >= query.gteAmount
-            val matchLte = query.lteAmount == null || cf.amount <= query.lteAmount
-            if (!matchGte || !matchLte) return@filter false
-
-            val matchSearch = query.search == null || cf.description.contains(query.search, true)
-            if (!matchSearch) return@filter false
-
-            // Logika Label yang lebih ringan
-            if (searchTags != null && searchTags.isNotEmpty()) {
-                val itemLabels = cf.label.split(",").map { it.trim().lowercase() }
-                if (!searchTags.any { tag -> itemLabels.contains(tag) }) return@filter false
+            // 2. Filter Labels (Optimal)
+            if (queryLabels.isNotEmpty()) {
+                // Kita gunakan contains() sederhana daripada any di dalam any
+                val itemLabelsLower = cf.label.lowercase()
+                val hasMatch = queryLabels.any { tag ->
+                    // Cek apakah tag ada di dalam string label (cara paling cepat)
+                    itemLabelsLower.contains(tag)
+                }
+                if (!hasMatch) return@filter false
             }
 
-            // Filter Tanggal (Penyebab utama timeout)
+            // 3. Filter Tanggal
             if (startLimit != null || endLimit != null) {
-                val cfDate = try {
-                    // substring(0,10) biasanya "YYYY-MM-DD"
-                    LocalDate.parse(cf.createdAt.substring(0, 10))
-                } catch (e: Exception) { null }
-
-                if (cfDate == null) return@filter false
-                if (startLimit != null && cfDate.isBefore(startLimit)) return@filter false
-                if (endLimit != null && cfDate.isAfter(endLimit)) return@filter false
+                val cfDate = try { LocalDate.parse(cf.createdAt.substring(0, 10)) } catch (e: Exception) { null }
+                if (cfDate != null) {
+                    if (startLimit != null && cfDate.isBefore(startLimit)) return@filter false
+                    if (endLimit != null && cfDate.isAfter(endLimit)) return@filter false
+                } else if (startLimit != null || endLimit != null) {
+                    return@filter false
+                }
             }
 
             true
